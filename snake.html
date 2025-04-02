@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobile Tic-Tac-Toe with Webcam</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: clamp(1.5rem, 5vw, 2rem);
+        }
+        
+        #setup-screen, #game-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 600px;
+        }
+        
+        #game-screen {
+            display: none;
+        }
+        
+        #webcam-container {
+            width: 100%;
+            max-width: 400px;
+            margin-bottom: 20px;
+            position: relative;
+            aspect-ratio: 4/3;
+            overflow: hidden;
+            border-radius: 8px;
+            background-color: #000;
+        }
+        
+        #webcam {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror effect */
+        }
+        
+        #canvas {
+            display: none;
+        }
+        
+        #photo-preview {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #333;
+            margin-bottom: 20px;
+            display: none;
+            transform: scaleX(-1); /* Mirror effect to match webcam */
+        }
+        
+        .button-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            text-align: center;
+            text-decoration: none;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+            flex-grow: 1;
+            min-width: 120px;
+            touch-action: manipulation;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(60px, 1fr));
+            grid-template-rows: repeat(3, minmax(60px, 1fr));
+            gap: 5px;
+            margin: 20px 0;
+            width: 100%;
+            max-width: 300px;
+            aspect-ratio: 1/1;
+        }
+        
+        .cell {
+            background-color: #ddd;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+            position: relative;
+        }
+        
+        .cell:hover {
+            background-color: #ccc;
+        }
+        
+        #status {
+            font-size: clamp(1rem, 4vw, 1.2rem);
+            margin-bottom: 20px;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        #restart-btn {
+            background-color: #f44336;
+            width: 100%;
+            max-width: 200px;
+        }
+        
+        #restart-btn:hover {
+            background-color: #d32f2f;
+        }
+        
+        .player-marker {
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror effect to match webcam */
+        }
+        
+        .ai-marker {
+            width: 60%;
+            height: 60%;
+        }
+
+        #error-message {
+            color: #d32f2f;
+            margin-bottom: 15px;
+            text-align: center;
+            display: none;
+        }
+
+        @media (max-width: 480px) {
+            #game-board {
+                max-width: 250px;
+            }
+            
+            button {
+                padding: 10px 15px;
+                font-size: 14px;
+            }
+            
+            #photo-preview {
+                width: 60px;
+                height: 60px;
+            }
+        }
+
+        @media (max-height: 500px) and (orientation: landscape) {
+            body {
+                padding: 10px;
+            }
+            
+            #setup-screen, #game-screen {
+                padding: 10px;
+                margin-bottom: 10px;
+            }
+            
+            #game-board {
+                max-width: 200px;
+            }
+            
+            h1 {
+                margin-bottom: 10px;
+                font-size: 1.2rem;
+            }
+            
+            #status {
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Mobile Tic-Tac-Toe with Webcam</h1>
+    
+    <div id="setup-screen">
+        <h2>Take Your Photo</h2>
+        <div id="error-message"></div>
+        <div id="webcam-container">
+            <video id="webcam" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        <img id="photo-preview" alt="Your photo">
+        <div class="button-container">
+            <button id="capture-btn">Capture Photo</button>
+            <button id="start-btn" disabled>Start Game</button>
+        </div>
+        <div id="camera-permission-help" style="margin-top: 15px; text-align: center; display: none;">
+            <p>If camera doesn't work:</p>
+            <ol style="text-align: left; display: inline-block; margin-top: 5px;">
+                <li>Refresh the page</li>
+                <li>Allow camera permissions</li>
+                <li>Make sure you're on HTTPS</li>
+            </ol>
+        </div>
+    </div>
+    
+    <div id="game-screen">
+        <h2>Tic-Tac-Toe</h2>
+        <div id="status">Your turn!</div>
+        <div id="game-board">
+            <div class="cell" data-index="0"></div>
+            <div class="cell" data-index="1"></div>
+            <div class="cell" data-index="2"></div>
+            <div class="cell" data-index="3"></div>
+            <div class="cell" data-index="4"></div>
+            <div class="cell" data-index="5"></div>
+            <div class="cell" data-index="6"></div>
+            <div class="cell" data-index="7"></div>
+            <div class="cell" data-index="8"></div>
+        </div>
+        <button id="restart-btn">Play Again</button>
+    </div>
+    
+    <script>
+        // DOM elements
+        const webcamElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('canvas');
+        const captureBtn = document.getElementById('capture-btn');
+        const startBtn = document.getElementById('start-btn');
+        const photoPreview = document.getElementById('photo-preview');
+        const setupScreen = document.getElementById('setup-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const statusElement = document.getElementById('status');
+        const gameBoard = document.getElementById('game-board');
+        const cells = document.querySelectorAll('.cell');
+        const restartBtn = document.getElementById('restart-btn');
+        const errorMessage = document.getElementById('error-message');
+        const cameraHelp = document.getElementById('camera-permission-help');
+        
+        // Game state
+        let playerPhoto = null;
+        let currentPlayer = 'player';
+        let gameBoardState = ['', '', '', '', '', '', '', '', ''];
+        let gameActive = true;
+        let stream = null;
+        
+        // Webcam setup with error handling
+        async function setupWebcam() {
+            errorMessage.style.display = 'none';
+            cameraHelp.style.display = 'none';
+            
+            try {
+                // Check if browser supports mediaDevices
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Browser doesn\'t support camera access');
+                }
+                
+                // Check if we're on HTTPS (required for camera on most browsers)
+                if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+                    throw new Error('Camera requires HTTPS (or localhost)');
+                }
+                
+                // Try to get the camera stream
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'user', // Prefer front camera on mobile
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: false 
+                });
+                
+                webcamElement.srcObject = stream;
+                captureBtn.disabled = false;
+                
+                // Show help if camera doesn't start within 3 seconds
+                const timeout = setTimeout(() => {
+                    if (!stream.active) {
+                        cameraHelp.style.display = 'block';
+                    }
+                }, 3000);
+                
+                webcamElement.onplaying = () => {
+                    clearTimeout(timeout);
+                };
+                
+            } catch (err) {
+                console.error('Camera error:', err);
+                captureBtn.disabled = true;
+                errorMessage.textContent = `Camera error: ${err.message}`;
+                errorMessage.style.display = 'block';
+                cameraHelp.style.display = 'block';
+            }
+        }
+        
+        // Capture photo from webcam
+        captureBtn.addEventListener('click', () => {
+            const context = canvasElement.getContext('2d');
+            
+            // Set canvas dimensions to match video aspect ratio
+            const videoWidth = webcamElement.videoWidth;
+            const videoHeight = webcamElement.videoHeight;
+            
+            // Calculate dimensions for square crop
+            const size = Math.min(videoWidth, videoHeight);
+            canvasElement.width = size;
+            canvasElement.height = size;
+            
+            // Draw the image centered and cropped to square
+            const offsetX = (videoWidth - size) / 2;
+            const offsetY = (videoHeight - size) / 2;
+            
+            context.drawImage(
+                webcamElement, 
+                offsetX, 
+                offsetY, 
+                size, 
+                size,
+                0, 
+                0, 
+                canvasElement.width, 
+                canvasElement.height
+            );
+            
+            // Convert canvas to data URL and display preview
+            playerPhoto = canvasElement.toDataURL('image/jpeg', 0.8);
+            photoPreview.src = playerPhoto;
+            photoPreview.style.display = 'block';
+            startBtn.disabled = false;
+            
+            // Stop the webcam stream to save resources
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
+        
+        // Start game
+        startBtn.addEventListener('click', () => {
+            setupScreen.style.display = 'none';
+            gameScreen.style.display = 'flex';
+        });
+        
+        // Restart game
+        restartBtn.addEventListener('click', () => {
+            // Reset game state
+            gameBoardState = ['', '', '', '', '', '', '', '', ''];
+            currentPlayer = 'player';
+            gameActive = true;
+            statusElement.textContent = 'Your turn!';
+            
+            // Clear the board
+            cells.forEach(cell => {
+                cell.innerHTML = '';
+                cell.style.backgroundColor = '#ddd';
+            });
+            
+            // Show setup screen again
+            setupScreen.style.display = 'flex';
+            gameScreen.style.display = 'none';
+            
+            // Reinitialize webcam
+            setupWebcam();
+        });
+        
+        // Handle cell clicks
+        cells.forEach(cell => {
+            cell.addEventListener('click', handleCellClick);
+            cell.addEventListener('touchend', handleCellClick, { passive: true });
+        });
+        
+        function handleCellClick(e) {
+            // Prevent double-tap zoom on mobile
+            if (e.type === 'touchend') {
+                e.preventDefault();
+            }
+            
+            const index = this.getAttribute('data-index');
+            
+            // Only proceed if the cell is empty and it's the player's turn
+            if (gameBoardState[index] === '' && currentPlayer === 'player' && gameActive) {
+                // Place player's marker
+                gameBoardState[index] = 'X';
+                const img = document.createElement('img');
+                img.src = playerPhoto;
+                img.className = 'player-marker';
+                this.appendChild(img);
+                
+                // Check for win or draw
+                if (checkWin('X')) {
+                    statusElement.textContent = 'You win!';
+                    gameActive = false;
+                    highlightWinningCells();
+                    return;
+                } else if (checkDraw()) {
+                    statusElement.textContent = "It's a draw!";
+                    gameActive = false;
+                    return;
+                }
+                
+                // Switch to AI's turn
+                currentPlayer = 'ai';
+                statusElement.textContent = "AI's turn...";
+                
+                // AI makes a move after a short delay
+                setTimeout(makeAIMove, 800);
+            }
+        }
+        
+        // AI move logic
+        function makeAIMove() {
+            if (!gameActive) return;
+            
+            // Improved AI strategy:
+            // 1. Try to win
+            // 2. Block player from winning
+            // 3. Take center if available
+            // 4. Take a corner if available
+            // 5. Random move
+            let move = findWinningMove('O') || 
+                      findWinningMove('X') || 
+                      (gameBoardState[4] === '' ? 4 : null) || 
+                      findRandomCorner() || 
+                      findRandomMove();
+            
+            if (move !== null) {
+                gameBoardState[move] = 'O';
+                const cell = cells[move];
+                const oImg = document.createElement('img');
+                oImg.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" stroke="black" stroke-width="5" fill="none"/></svg>';
+                oImg.className = 'ai-marker';
+                cell.appendChild(oImg);
+                
+                // Check for win or draw
+                if (checkWin('O')) {
+                    statusElement.textContent = 'AI wins!';
+                    gameActive = false;
+                    highlightWinningCells();
+                    return;
+                } else if (checkDraw()) {
+                    statusElement.textContent = "It's a draw!";
+                    gameActive = false;
+                    return;
+                }
+                
+                // Switch back to player's turn
+                currentPlayer = 'player';
+                statusElement.textContent = 'Your turn!';
+            }
+        }
+        
+        // Check for winning move
+        function findWinningMove(marker) {
+            const lines = [
+                [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+                [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
+                [0, 4, 8], [2, 4, 6]             // diagonals
+            ];
+            
+            for (let line of lines) {
+                const [a, b, c] = line;
+                if (gameBoardState[a] === marker && gameBoardState[b] === marker && gameBoardState[c] === '') {
+                    return c;
+                }
+                if (gameBoardState[a] === marker && gameBoardState[c] === marker && gameBoardState[b] === '') {
+                    return b;
+                }
+                if (gameBoardState[b] === marker && gameBoardState[c] === marker && gameBoardState[a] === '') {
+                    return a;
+                }
+            }
+            
+            return null;
+        }
+        
+        // Find random empty corner
+        function findRandomCorner() {
+            const corners = [0, 2, 6, 8];
+            const emptyCorners = corners.filter(index => gameBoardState[index] === '');
+            return emptyCorners.length > 0 ? emptyCorners[Math.floor(Math.random() * emptyCorners.length)] : null;
+        }
+        
+        // Find random empty cell
+        function findRandomMove() {
+            const emptyCells = [];
+            gameBoardState.forEach((cell, index) => {
+                if (cell === '') emptyCells.push(index);
+            });
+            
+            return emptyCells.length > 0 ? emptyCells[Math.floor(Math.random() * emptyCells.length)] : null;
+        }
+        
+        // Check if the current player has won
+        function checkWin(marker) {
+            const winningLines = [
+                [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+                [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
+                [0, 4, 8], [2, 4, 6]             // diagonals
+            ];
+            
+            return winningLines.some(line => {
+                return line.every(index => {
+                    return gameBoardState[index] === marker;
+                });
+            });
+        }
+        
+        // Check for a draw
+        function checkDraw() {
+            return gameBoardState.every(cell => cell !== '');
+        }
+        
+        // Highlight winning cells
+        function highlightWinningCells() {
+            const winningLines = [
+                [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+                [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
+                [0, 4, 8], [2, 4, 6]             // diagonals
+            ];
+            
+            for (let line of winningLines) {
+                const [a, b, c] = line;
+                if (gameBoardState[a] !== '' && gameBoardState[a] === gameBoardState[b] && gameBoardState[a] === gameBoardState[c]) {
+                    cells[a].style.backgroundColor = '#a5d6a7';
+                    cells[b].style.backgroundColor = '#a5d6a7';
+                    cells[c].style.backgroundColor = '#a5d6a7';
+                    break;
+                }
+            }
+        }
+        
+        // Initialize the game when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            setupWebcam();
+            
+            // Show a warning if not on HTTPS (except localhost)
+            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+                errorMessage.textContent = 'Note: Camera may not work without HTTPS';
+                errorMessage.style.display = 'block';
+            }
+        });
+        
+        // Clean up when page is unloaded
+        window.addEventListener('beforeunload', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>
